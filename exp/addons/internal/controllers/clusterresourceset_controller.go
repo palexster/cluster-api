@@ -78,6 +78,7 @@ func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
 			handler.EnqueueRequestsFromMapFunc(r.resourceToClusterResourceSet),
+			builder.OnlyMetadata,
 			builder.WithPredicates(
 				resourcepredicates.ResourceCreateUpdate(ctrl.LoggerFrom(ctx)),
 			),
@@ -85,6 +86,7 @@ func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(r.resourceToClusterResourceSet),
+			builder.OnlyMetadata,
 			builder.WithPredicates(
 				resourcepredicates.ResourceCreateUpdate(ctrl.LoggerFrom(ctx)),
 			),
