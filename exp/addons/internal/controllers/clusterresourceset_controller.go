@@ -51,10 +51,8 @@ import (
 	"sigs.k8s.io/cluster-api/util/predicates"
 )
 
-var (
-	// ErrSecretTypeNotSupported signals that a Secret is not supported.
-	ErrSecretTypeNotSupported = errors.New("unsupported secret type")
-)
+// ErrSecretTypeNotSupported signals that a Secret is not supported.
+var ErrSecretTypeNotSupported = errors.New("unsupported secret type")
 
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;patch
@@ -80,23 +78,20 @@ func (r *ClusterResourceSetReconciler) SetupWithManager(ctx context.Context, mgr
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
 			handler.EnqueueRequestsFromMapFunc(r.resourceToClusterResourceSet),
-			builder.OnlyMetadata,
 			builder.WithPredicates(
-				resourcepredicates.ResourceCreate(ctrl.LoggerFrom(ctx)),
+				resourcepredicates.ResourceCreateUpdate(ctrl.LoggerFrom(ctx)),
 			),
 		).
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(r.resourceToClusterResourceSet),
-			builder.OnlyMetadata,
 			builder.WithPredicates(
-				resourcepredicates.ResourceCreate(ctrl.LoggerFrom(ctx)),
+				resourcepredicates.ResourceCreateUpdate(ctrl.LoggerFrom(ctx)),
 			),
 		).
 		WithOptions(options).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
-
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")
 	}
@@ -227,7 +222,7 @@ func (r *ClusterResourceSetReconciler) getClustersByClusterResourceSetSelector(c
 		return nil, errors.Wrap(err, "failed to list clusters")
 	}
 
-	clusters := []*clusterv1.Cluster{}
+	clusters := make([]*clusterv1.Cluster, 0)
 	for i := range clusterList.Items {
 		c := &clusterList.Items[i]
 		if c.DeletionTimestamp.IsZero() {
@@ -301,8 +296,10 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 			errList = append(errList, err)
 		}
 
+		strategy := addonsv1.ClusterResourceSetStrategy(clusterResourceSet.Spec.Strategy)
+
 		// If resource is already applied successfully and clusterResourceSet mode is "ApplyOnce", continue. (No need to check hash changes here)
-		if resourceSetBinding.IsApplied(resource) {
+		if resourceSetBinding.IsApplied(resource) && strategy == addonsv1.ClusterResourceSetStrategyApplyOnce {
 			continue
 		}
 
@@ -351,7 +348,7 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 		for i := range dataList {
 			data := dataList[i]
 
-			if err := apply(ctx, remoteClient, data); err != nil {
+			if err := apply(ctx, remoteClient, strategy, data); err != nil {
 				isSuccessful = false
 				log.Error(err, "failed to apply ClusterResourceSet resource", "Resource kind", resource.Kind, "Resource name", resource.Name)
 				conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.ApplyFailedReason, clusterv1.ConditionSeverityWarning, err.Error())
@@ -432,7 +429,7 @@ func (r *ClusterResourceSetReconciler) ensureResourceOwnerRef(ctx context.Contex
 
 // clusterToClusterResourceSet is mapper function that maps clusters to ClusterResourceSet.
 func (r *ClusterResourceSetReconciler) clusterToClusterResourceSet(o client.Object) []ctrl.Request {
-	result := []ctrl.Request{}
+	result := make([]ctrl.Request, 0)
 
 	cluster, ok := o.(*clusterv1.Cluster)
 	if !ok {
@@ -470,7 +467,7 @@ func (r *ClusterResourceSetReconciler) clusterToClusterResourceSet(o client.Obje
 
 // resourceToClusterResourceSet is mapper function that maps resources to ClusterResourceSet.
 func (r *ClusterResourceSetReconciler) resourceToClusterResourceSet(o client.Object) []ctrl.Request {
-	result := []ctrl.Request{}
+	result := make([]ctrl.Request, 0)
 
 	// Add all ClusterResourceSet owners.
 	for _, owner := range o.GetOwnerReferences() {
