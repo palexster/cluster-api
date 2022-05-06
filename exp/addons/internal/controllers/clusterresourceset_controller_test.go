@@ -768,7 +768,7 @@ data:
 			},
 		}
 
-		// update the configmap data
+		// update the secret data
 		t.Log("Updating the secret resource")
 		g.Expect(env.Update(ctx, secretUpdate)).To(Succeed())
 
@@ -789,6 +789,188 @@ data:
 			// only one resource is applied
 			resource := bindings[0].Resources[0]
 			return resource.Hash != oldHash
+		}, timeout).Should(BeTrue())
+	})
+
+	t.Run("Should create ClusterResourceSet with strategy 'AlwaysApply' and reconcile configmap only once if data has not changed", func(t *testing.T) {
+		g := NewWithT(t)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
+
+		t.Log("Updating the cluster with labels")
+		testCluster.SetLabels(labels)
+		g.Expect(env.Update(ctx, testCluster)).To(Succeed())
+
+		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterResourceSetName,
+				Namespace: ns.Name,
+			},
+			Spec: addonsv1.ClusterResourceSetSpec{
+				ClusterSelector: metav1.LabelSelector{
+					MatchLabels: labels,
+				},
+				Strategy:  "ApplyAlways",
+				Resources: []addonsv1.ResourceRef{{Name: configmapName, Kind: "ConfigMap"}},
+			},
+		}
+		// Create the ClusterResourceSet.
+		g.Expect(env.Create(ctx, clusterResourceSetInstance)).To(Succeed())
+
+		// Wait until ClusterResourceSetBinding is created for the Cluster
+		clusterResourceSetBindingKey := client.ObjectKey{
+			Namespace: testCluster.Namespace,
+			Name:      testCluster.Name,
+		}
+
+		// Wait until ClusterResourceSetBinding is created for the Cluster
+		t.Log("Waiting for the ClusterResourceSetBinding to be created")
+		oldHash := ""
+		var oldLastAppliedTime *metav1.Time
+		g.Eventually(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+			err := env.Get(ctx, clusterResourceSetBindingKey, binding)
+			if err != nil {
+				return false
+			}
+
+			bindings := binding.Spec.Bindings
+			// should only have one binding
+			if len(bindings) != 1 {
+				return false
+			}
+
+			// only one resource is applied
+			resource := bindings[0].Resources[0]
+			oldHash = resource.Hash
+			oldLastAppliedTime = resource.LastAppliedTime
+			return resource.Applied
+		}, timeout).Should(BeTrue())
+
+		// Get configmap obj, update the configmap
+		cmKey := client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      configmapName,
+		}
+		cm := &corev1.ConfigMap{}
+		g.Expect(env.Get(ctx, cmKey, cm)).To(Succeed())
+
+		cm.Labels = map[string]string{"foo": "bar"}
+
+		// The CRS controller writes a lastAppliedTime field, which is of type metav1.Time. The precision at most a
+		// second. Therefore, if the controller re-applies the resource twice within one second, the lastAppliedTime
+		// value is unlikely to change. Our test below compares the lastAppliedTime values of two reconciles, so we wait
+		// to prevent the reconciles from running within the same second. Related issue: https://issues.k8s.io/15262
+		t.Log("Letting some time pass before updating the resource, so that lastAppliedTime will be different.")
+		time.Sleep(10 * time.Second)
+
+		// update the configmap data
+		t.Log("Updating the configmap resource")
+		g.Expect(env.Update(ctx, cm)).To(Succeed())
+
+		t.Log("Verifying that resource is not re-applied over a period of time.")
+		g.Consistently(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+			err := env.Get(ctx, clusterResourceSetBindingKey, binding)
+			if err != nil {
+				return false
+			}
+
+			bindings := binding.Spec.Bindings
+			// only one resource is applied
+			resource := bindings[0].Resources[0]
+			return oldHash == resource.Hash && oldLastAppliedTime.Equal(resource.LastAppliedTime)
+		}, timeout).Should(BeTrue())
+	})
+
+	t.Run("Should create ClusterResourceSet with strategy 'AlwaysApply' and reconcile secrets only once if data has not changed", func(t *testing.T) {
+		g := NewWithT(t)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
+
+		t.Log("Updating the cluster with labels")
+		testCluster.SetLabels(labels)
+		g.Expect(env.Update(ctx, testCluster)).To(Succeed())
+
+		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterResourceSetName,
+				Namespace: ns.Name,
+			},
+			Spec: addonsv1.ClusterResourceSetSpec{
+				ClusterSelector: metav1.LabelSelector{
+					MatchLabels: labels,
+				},
+				Strategy:  "ApplyAlways",
+				Resources: []addonsv1.ResourceRef{{Name: secretName, Kind: "Secret"}},
+			},
+		}
+		// Create the ClusterResourceSet.
+		g.Expect(env.Create(ctx, clusterResourceSetInstance)).To(Succeed())
+
+		// Wait until ClusterResourceSetBinding is created for the Cluster
+		clusterResourceSetBindingKey := client.ObjectKey{
+			Namespace: testCluster.Namespace,
+			Name:      testCluster.Name,
+		}
+
+		t.Log("Waiting for the ClusterResourceSetBinding to be created")
+		oldHash := ""
+		var oldLastAppliedTime *metav1.Time
+		g.Eventually(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+			err := env.Get(ctx, clusterResourceSetBindingKey, binding)
+			if err != nil {
+				return false
+			}
+
+			bindings := binding.Spec.Bindings
+			// should only have one binding
+			if len(bindings) != 1 {
+				return false
+			}
+
+			// only one resource is applied
+			resource := bindings[0].Resources[0]
+			oldHash = resource.Hash
+			oldLastAppliedTime = resource.LastAppliedTime
+			return resource.Applied
+		}, timeout).Should(BeTrue())
+
+		secretKey := client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      secretName,
+		}
+		secret := &corev1.Secret{}
+		g.Expect(env.Get(ctx, secretKey, secret)).To(Succeed())
+
+		// Overwrite the Secret labels to cause the ClusterResourceSet controller to reconcile any CRS that references
+		// the Secret.
+		secret.Labels = map[string]string{"foo": "bar"}
+
+		// The CRS controller writes a lastAppliedTime field, which is of type metav1.Time. The precision at most a
+		// second. Therefore, if the controller re-applies the resource twice within one second, the lastAppliedTime
+		// value is unlikely to change. Our test below compares the lastAppliedTime values of two reconciles, so we wait
+		// to prevent the reconciles from running within the same second. Related issue: https://issues.k8s.io/15262
+		t.Log("Letting some time pass before updating the resource, so that lastAppliedTime will be different.")
+		time.Sleep(10 * time.Second)
+
+		// update the secrete, but not its data
+		t.Log("Updating the secret resource")
+		g.Expect(env.Update(ctx, secret)).To(Succeed())
+
+		t.Log("Verifying that resource is not re-applied over a period of time.")
+		g.Consistently(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+			err := env.Get(ctx, clusterResourceSetBindingKey, binding)
+			if err != nil {
+				return false
+			}
+
+			bindings := binding.Spec.Bindings
+			// only one resource is applied
+			resource := bindings[0].Resources[0]
+			return oldHash == resource.Hash && oldLastAppliedTime.Equal(resource.LastAppliedTime)
 		}, timeout).Should(BeTrue())
 	})
 }
