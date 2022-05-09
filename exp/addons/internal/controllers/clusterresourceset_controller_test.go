@@ -862,7 +862,7 @@ data:
 		// value is unlikely to change. Our test below compares the lastAppliedTime values of two reconciles, so we wait
 		// to prevent the reconciles from running within the same second. Related issue: https://issues.k8s.io/15262
 		t.Log("Letting some time pass before updating the resource, so that lastAppliedTime will be different.")
-		time.Sleep(10 * time.Second)
+		time.Sleep(2 * time.Second)
 
 		// update the configmap data
 		t.Log("Updating the configmap resource")
@@ -953,7 +953,7 @@ data:
 		// value is unlikely to change. Our test below compares the lastAppliedTime values of two reconciles, so we wait
 		// to prevent the reconciles from running within the same second. Related issue: https://issues.k8s.io/15262
 		t.Log("Letting some time pass before updating the resource, so that lastAppliedTime will be different.")
-		time.Sleep(10 * time.Second)
+		time.Sleep(2 * time.Second)
 
 		// update the secrete, but not its data
 		t.Log("Updating the secret resource")
