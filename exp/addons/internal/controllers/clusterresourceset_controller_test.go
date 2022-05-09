@@ -390,10 +390,6 @@ metadata:
 		testCluster.SetLabels(labels)
 		g.Expect(env.Update(ctx, testCluster)).To(Succeed())
 
-		// Must sleep here to make sure resource is created after the previous reconcile.
-		// If the resource is created in between, predicates are not used as intended in this test.
-		time.Sleep(2 * time.Second)
-
 		t.Log("Verifying ClusterResourceSetBinding is created with cluster owner reference")
 		// Wait until ClusterResourceSetBinding is created for the Cluster
 		clusterResourceSetBindingKey := client.ObjectKey{
@@ -419,6 +415,10 @@ metadata:
 			}
 			return false
 		}, timeout).Should(BeTrue())
+
+		// Must sleep here to make sure resource is created after the previous reconcile.
+		// If the resource is created in between, predicates are not used as intended in this test.
+		time.Sleep(2 * time.Second)
 
 		newSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
