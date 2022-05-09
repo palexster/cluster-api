@@ -279,6 +279,10 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 	strategy := addonsv1.ClusterResourceSetStrategy(clusterResourceSet.Spec.Strategy)
 
 	for _, resource := range clusterResourceSet.Spec.Resources {
+
+		if resourceSetBinding.IsApplied(resource) && strategy == addonsv1.ClusterResourceSetStrategyApplyOnce {
+			continue
+		}
 		// here we may have applied already the resource, so the logic should be slightly different
 		var oldHash string
 		isAlreadyApplied := resourceSetBinding.IsApplied(resource)
