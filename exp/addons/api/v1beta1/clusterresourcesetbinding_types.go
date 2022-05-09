@@ -80,6 +80,16 @@ func (r *ResourceSetBinding) SetBinding(resourceBinding ResourceBinding) {
 	r.Resources = append(r.Resources, resourceBinding)
 }
 
+// GetBinding returns a copy of the binding whose reference matches resourceRef, or nil if no binding matches.
+func (r *ResourceSetBinding) GetBinding(resourceRef ResourceRef) *ResourceBinding {
+	for i := range r.Resources {
+		if reflect.DeepEqual(r.Resources[i].ResourceRef, resourceRef) {
+			return r.Resources[i].DeepCopy()
+		}
+	}
+	return nil
+}
+
 // GetOrCreateBinding returns the ResourceSetBinding for a given ClusterResourceSet if exists,
 // otherwise creates one and updates ClusterResourceSet with it.
 func (c *ClusterResourceSetBinding) GetOrCreateBinding(clusterResourceSet *ClusterResourceSet) *ResourceSetBinding {

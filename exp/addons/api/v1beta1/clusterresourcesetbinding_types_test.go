@@ -156,3 +156,57 @@ func TestSetResourceBinding(t *testing.T) {
 		})
 	}
 }
+
+func TestGetResourceBinding(t *testing.T) {
+	tests := []struct {
+		name                string
+		resourceSetBinding  ResourceSetBinding
+		resourceRef         ResourceRef
+		wantResourceBinding *ResourceBinding
+	}{
+		{
+			name: "should return the resourceBinding that matches the ref",
+			resourceSetBinding: ResourceSetBinding{
+				ClusterResourceSetName: "test-clusterResourceSet",
+				Resources: []ResourceBinding{
+					{
+						ResourceRef: ResourceRef{
+							Name: "test-configMap",
+							Kind: "ConfigMap",
+						},
+					},
+				},
+			},
+			resourceRef: ResourceRef{
+				Name: "test-configMap",
+				Kind: "ConfigMap",
+			},
+			wantResourceBinding: &ResourceBinding{
+				ResourceRef: ResourceRef{
+					Name: "test-configMap",
+					Kind: "ConfigMap",
+				},
+			},
+		},
+		{
+			name: "should return nil if no resourceBinding matches the ref",
+			resourceSetBinding: ResourceSetBinding{
+				ClusterResourceSetName: "test-clusterResourceSet",
+				Resources:              []ResourceBinding{},
+			},
+			resourceRef: ResourceRef{
+				Name: "test-configMap",
+				Kind: "ConfigMap",
+			},
+			wantResourceBinding: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gs := NewWithT(t)
+			binding := tt.resourceSetBinding.GetBinding(tt.resourceRef)
+			gs.Expect(tt.wantResourceBinding).To(BeEquivalentTo(binding))
+		})
+	}
+}
