@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"reflect"
 	"sort"
 	"time"
 
@@ -291,7 +290,8 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 		// we now will rely on the hash to know when to make changes
 		if isAlreadyApplied {
 			log.Info("the resource has already been applied, checking if we should reapply or not based on hash", "Resource kind", resource.Kind, "Resource name", resource.Name)
-			oldHash = getPreviousHash(resource, resourceSetBinding.Resources)
+			binding := resourceSetBinding.GetBinding(resource)
+			oldHash = binding.Hash
 		}
 
 		// We now retrieve the resource to compute the hash
@@ -550,22 +550,4 @@ func handleGetResourceErrors(clusterResourceSet *addonsv1.ClusterResourceSet, er
 		}
 	}
 	errList = append(errList, err)
-}
-
-func getPreviousHash(resourceRef addonsv1.ResourceRef, resources []addonsv1.ResourceBinding) string {
-	var oldHash string
-	if len(resources) != 0 {
-		var previouseBinding *addonsv1.ResourceBinding
-		for _, rb := range resources {
-			if reflect.DeepEqual(rb.ResourceRef, resourceRef) {
-				previouseBinding = &rb
-				break
-			}
-		}
-		if previouseBinding != nil {
-			oldHash = previouseBinding.Hash
-		}
-	}
-
-	return oldHash
 }
