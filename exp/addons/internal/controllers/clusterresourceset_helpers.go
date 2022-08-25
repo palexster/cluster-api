@@ -39,7 +39,6 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	addonsv1 "sigs.k8s.io/cluster-api/exp/addons/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	utilresource "sigs.k8s.io/cluster-api/util/resource"
 	utilyaml "sigs.k8s.io/cluster-api/util/yaml"
 )
@@ -232,7 +231,7 @@ func computeHash(dataArr [][]byte) string {
 	return fmt.Sprintf("sha256:%x", hash.Sum(nil))
 }
 
-func getDataListAndHash(resourceKind string, unstructuredData map[string]interface{}, errList []error) ([][]byte, string) {
+func getDataListAndHash(resourceKind string, unstructuredData map[string]interface{}) ([][]byte, string, []error) {
 	// Since maps are not ordered, we need to order them to get the same hash at each reconcile.
 	keys := make([]string, 0)
 
@@ -242,6 +241,7 @@ func getDataListAndHash(resourceKind string, unstructuredData map[string]interfa
 	sort.Strings(keys)
 
 	dataList := make([][]byte, 0)
+	errList := []error{}
 	for _, key := range keys {
 		val, ok, err := unstructured.NestedString(unstructuredData, key)
 		if !ok || err != nil {
@@ -258,19 +258,5 @@ func getDataListAndHash(resourceKind string, unstructuredData map[string]interfa
 		dataList = append(dataList, byteArr)
 	}
 
-	return dataList, computeHash(dataList)
-}
-
-func handleGetResourceErrors(clusterResourceSet *addonsv1.ClusterResourceSet, err error, errList []error) {
-	if err == ErrSecretTypeNotSupported {
-		conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.WrongSecretTypeReason, clusterv1.ConditionSeverityWarning, err.Error())
-	} else {
-		conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.RetrievingResourceFailedReason, clusterv1.ConditionSeverityWarning, err.Error())
-
-		// Continue without adding the error to the aggregate if we can't find the resource.
-		if apierrors.IsNotFound(err) {
-			return
-		}
-	}
-	errList = append(errList, err)
+	return dataList, computeHash(dataList), errList
 }

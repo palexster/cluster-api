@@ -276,7 +276,6 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 	strategy := addonsv1.ClusterResourceSetStrategy(clusterResourceSet.Spec.Strategy)
 
 	for _, resource := range clusterResourceSet.Spec.Resources {
-
 		if resourceSetBinding.IsApplied(resource) && strategy == addonsv1.ClusterResourceSetStrategyApplyOnce {
 			continue
 		}
@@ -295,7 +294,17 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 		// We now retrieve the resource to compute the hash
 		unstructuredObj, err := r.getResource(ctx, resource, cluster.GetNamespace())
 		if err != nil {
-			handleGetResourceErrors(clusterResourceSet, err, errList)
+			if err == ErrSecretTypeNotSupported {
+				conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.WrongSecretTypeReason, clusterv1.ConditionSeverityWarning, err.Error())
+			} else {
+				conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.RetrievingResourceFailedReason, clusterv1.ConditionSeverityWarning, err.Error())
+
+				// Continue without adding the error to the aggregate if we can't find the resource.
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+			}
+			errList = append(errList, err)
 			continue
 		}
 
@@ -329,7 +338,8 @@ func (r *ClusterResourceSetReconciler) ApplyClusterResourceSet(ctx context.Conte
 		}
 
 		// now calculate the new hash to compare with the old
-		dataList, newHash := getDataListAndHash(unstructuredObj.GetKind(), data.(map[string]interface{}), errList)
+		dataList, newHash, dataListAndHashErrList := getDataListAndHash(unstructuredObj.GetKind(), data.(map[string]interface{}))
+		errList = append(errList, dataListAndHashErrList...)
 
 		// This is where we determine if we continue the process or not.
 		if isAlreadyApplied && oldHash == newHash {
