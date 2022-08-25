@@ -21,8 +21,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"unicode"
 
 	"github.com/pkg/errors"
@@ -37,6 +39,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	addonsv1 "sigs.k8s.io/cluster-api/exp/addons/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	utilresource "sigs.k8s.io/cluster-api/util/resource"
 	utilyaml "sigs.k8s.io/cluster-api/util/yaml"
 )
@@ -227,4 +230,47 @@ func computeHash(dataArr [][]byte) string {
 		}
 	}
 	return fmt.Sprintf("sha256:%x", hash.Sum(nil))
+}
+
+func getDataListAndHash(resourceKind string, unstructuredData map[string]interface{}, errList []error) ([][]byte, string) {
+	// Since maps are not ordered, we need to order them to get the same hash at each reconcile.
+	keys := make([]string, 0)
+
+	for key := range unstructuredData {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	dataList := make([][]byte, 0)
+	for _, key := range keys {
+		val, ok, err := unstructured.NestedString(unstructuredData, key)
+		if !ok || err != nil {
+			errList = append(errList, errors.New("failed to get value field from the resource"))
+			continue
+		}
+
+		byteArr := []byte(val)
+		// If the resource is a Secret, data needs to be decoded.
+		if resourceKind == string(addonsv1.SecretClusterResourceSetResourceKind) {
+			byteArr, _ = base64.StdEncoding.DecodeString(val)
+		}
+
+		dataList = append(dataList, byteArr)
+	}
+
+	return dataList, computeHash(dataList)
+}
+
+func handleGetResourceErrors(clusterResourceSet *addonsv1.ClusterResourceSet, err error, errList []error) {
+	if err == ErrSecretTypeNotSupported {
+		conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.WrongSecretTypeReason, clusterv1.ConditionSeverityWarning, err.Error())
+	} else {
+		conditions.MarkFalse(clusterResourceSet, addonsv1.ResourcesAppliedCondition, addonsv1.RetrievingResourceFailedReason, clusterv1.ConditionSeverityWarning, err.Error())
+
+		// Continue without adding the error to the aggregate if we can't find the resource.
+		if apierrors.IsNotFound(err) {
+			return
+		}
+	}
+	errList = append(errList, err)
 }
