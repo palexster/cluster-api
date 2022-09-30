@@ -233,14 +233,14 @@ func computeHash(dataArr [][]byte) string {
 
 func getDataListAndHash(resourceKind string, unstructuredData map[string]interface{}) ([][]byte, string, []error) {
 	// Since maps are not ordered, we need to order them to get the same hash at each reconcile.
-	keys := make([]string, 0)
+	keys := []string{}
 
 	for key := range unstructuredData {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
-	dataList := make([][]byte, 0)
+	dataList := [][]byte{}
 	errList := []error{}
 	for _, key := range keys {
 		val, ok, err := unstructured.NestedString(unstructuredData, key)
