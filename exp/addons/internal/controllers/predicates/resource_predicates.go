@@ -34,7 +34,7 @@ func ResourceCreate(_ logr.Logger) predicate.Funcs {
 }
 
 // ResourceCreateUpdate returns a predicate that returns true for a create or update event.
-func ResourceCreateUpdate(logger logr.Logger) predicate.Funcs {
+func ResourceCreateUpdate(_ logr.Logger) predicate.Funcs {
 	return predicate.Funcs{
 		CreateFunc:  func(e event.CreateEvent) bool { return true },
 		UpdateFunc:  func(e event.UpdateEvent) bool { return true },
