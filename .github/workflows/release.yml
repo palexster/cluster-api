@@ -32,4 +32,16 @@ jobs:
         with:
           draft: true
           files: out/*
-          body: "TODO: Copy release notes shared by the comms team"
+          body_path: _releasenotes/${{ env.RELEASE_TAG }}.md
+      - name: Login to Dockerhub Registry
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.NEXUS_USERNAME }}
+          password: ${{ secrets.NEXUS_PASSWORD }}
+      - name: Build and push docker images
+        run: |
+          export REGISTRY=docker.io/mesosphere
+          export PROD_REGISTRY=$REGISTRY
+          export TAG=${{ env.RELEASE_TAG }}
+          make ALL_ARCH="amd64 arm64" docker-build-all
+          make ALL_ARCH="amd64 arm64" docker-push-all
