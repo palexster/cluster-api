@@ -914,7 +914,7 @@ release-binary: $(RELEASE_DIR)
 		--user $$(id -u):$$(id -g) \
 		-v "$$(pwd):/workspace$(DOCKER_VOL_OPTS)" \
 		-w /workspace \
-		golang:$(GO_VERSION) \
+		$(GO_CONTAINER_IMAGE) \
 		go build -a -trimpath -ldflags "$(LDFLAGS) -extldflags '-static'" \
 		-o $(RELEASE_DIR)/$(notdir $(RELEASE_BINARY)) $(BUILD_PATH)
 
