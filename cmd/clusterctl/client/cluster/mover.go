@@ -345,12 +345,12 @@ func (o *objectMover) move(graph *objectGraph, toProxy Proxy, mutators ...Resour
 
 	// Sets the pause field on the Cluster object in the source management cluster, so the controllers stop reconciling it.
 	log.V(1).Info("Pausing the source cluster")
-	if err := setClusterPause(o.fromProxy, clusters, true, o.dryRun, mutators...); err != nil {
+	if err := setClusterPause(o.fromProxy, clusters, true, o.dryRun); err != nil {
 		return err
 	}
 
 	log.V(1).Info("Pausing the source ClusterClasses")
-	if err := setClusterClassPause(o.fromProxy, clusterClasses, true, o.dryRun, mutators...); err != nil {
+	if err := setClusterClassPause(o.fromProxy, clusterClasses, true, o.dryRun); err != nil {
 		return errors.Wrap(err, "error pausing ClusterClasses")
 	}
 
