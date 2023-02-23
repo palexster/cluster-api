@@ -26,6 +26,10 @@ jobs:
           go-version: '^1.19'
       - name: generate release artifacts
         run: |
+          export REGISTRY=docker.io/mesosphere
+          export PROD_REGISTRY=$REGISTRY
+          export STAGING_REGISTRY=$REGISTRY
+          export TAG=${{ env.RELEASE_TAG }}
           make release
       - name: Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # tag=v1
@@ -42,6 +46,7 @@ jobs:
         run: |
           export REGISTRY=docker.io/mesosphere
           export PROD_REGISTRY=$REGISTRY
+          export STAGING_REGISTRY=$REGISTRY
           export TAG=${{ env.RELEASE_TAG }}
           make ALL_ARCH="amd64 arm64" docker-build-all
           make ALL_ARCH="amd64 arm64" docker-push-all
