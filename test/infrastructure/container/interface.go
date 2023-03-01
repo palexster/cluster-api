@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 
+	dockercontainer "github.com/docker/docker/api/types/container"
+
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
@@ -98,6 +100,8 @@ type RunContainerInput struct {
 	// RestartPolicy to use for the container.
 	// If not set, defaults to "unless-stopped".
 	RestartPolicy string
+	// Resource limits and settings for the container.
+	Resources dockercontainer.Resources
 }
 
 // ExecContainerInput contains values for running exec on a container.
